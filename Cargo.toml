@@ -5,4 +5,5 @@ version = "0.0.1"
 authors = ["Arien Malec <arien.malec@gmail.com>"]
 
 [dependencies]
-chrono = "*"
+chrono = "0.2.14"
+url = "*"
