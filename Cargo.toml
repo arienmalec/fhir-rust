@@ -7,3 +7,4 @@ authors = ["Arien Malec <arien.malec@gmail.com>"]
 [dependencies]
 chrono = "0.2.14"
 url = "*"
+rustc-serialize = "0.3"

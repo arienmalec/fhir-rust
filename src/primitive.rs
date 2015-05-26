@@ -1,44 +1,37 @@
+use std::fmt;
 use chrono::{DateTime,FixedOffset};
 use chrono::format::{Item,Fixed,Parsed,ParseError,self};
 use url::{Url};
-use std::fmt;
 use std::convert::{From};
-
+use rustc_serialize::json::{self, ToJson, Json};
 
 #[derive(Debug)]
 pub struct Dec {
-	raw: String,
-	val: Option<f64>,
-	precision: Option<usize> 
+	val: f64,
+	precision: usize 
 }
 
 
 impl Dec {
-	fn find_precision(s: &str) -> Option<usize> {
-		match s.rfind('.') {
-			Some(i) => Some((s.len() - i - 1 )),
-			None => Some(0)
-		}
+	fn find_precision(s: &str) -> usize {
+		s.rfind('.').map(|i| s.len() - i - 1 ).unwrap_or(0)
 	}
 
-	fn from_str(s: &str) -> Self {
-		let v = s.parse().ok();
-		let p = v.and_then(|_| Dec::find_precision(s));
-		Dec {
-			raw: s.to_string(),
-			val: v,
-			precision: p
-		}
-
+	fn from_str(s: &str) -> Result<Self,()> {
+		let f :f64  = match s.parse() {
+			Ok(f) => f,
+			_ => return Err(()) // can't handle error due to Bug #24748
+		};
+		Ok(Dec {
+			val: f,
+			precision: Dec::find_precision(s)
+		})
 	}
 }
 
 impl fmt::Display for Dec {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self.val {
-			Some(v) =>  write!(f,"{:.*}",self.precision.unwrap(),v),
-			None => f.write_str(&(self.raw))
-		}
+		write!(f,"{:.*}",self.precision,self.val)
 	}
 }
 
@@ -85,24 +78,26 @@ impl From<DateTime<FixedOffset>> for VarDate {
 }
 
 impl VarDate {
-	fn from_year(y: i32) -> Self {
-		VarDate { y: Some(y), m: None, d: None, dt: None}
-	}
 
-	fn parse(s: &str) -> Result<Self,ParseError> {
-        const ITEMS: &'static [Item<'static>] = &[Item::Fixed(Fixed::RFC3339)];
-        let mut parsed = Parsed::new();
-
-        match format::parse(&mut parsed, s, ITEMS.iter().cloned()) {
-        	Ok(_) => match parsed.to_datetime() {
+	fn _from_parsed_result(r: Result<(),ParseError>, p: Parsed) -> Result<Self,ParseError> {
+		match r {
+        	Ok(_) => match p.to_datetime() {
         		Ok(dt) => Ok(VarDate {y: None, m: None, d: None, dt: Some(dt)}),
         		Err(e) => Err(e)
         	},
-        	Err(e) => match (parsed.year, parsed.month, parsed.day) {
+        	Err(e) => match (p.year, p.month, p.day) {
         		(None, None, None) => Err(e),
-        		_ => Ok(VarDate {y: parsed.year, m: parsed.month, d: parsed.day, dt: None})
+        		_ => Ok(VarDate {y: p.year, m: p.month, d: p.day, dt: None})
         	}
         }
+	}
+
+	pub fn parse(s: &str) -> Result<Self,ParseError> {
+        const ITEMS: &'static [Item<'static>] = &[Item::Fixed(Fixed::RFC3339)];
+        let mut parsed = Parsed::new();
+
+        let r = format::parse(&mut parsed, s, ITEMS.iter().cloned());
+        VarDate::_from_parsed_result(r, parsed)
 	}
 
 }
@@ -138,7 +133,6 @@ pub enum Primitive {
 	Date(VarDate),
 	DateTime(VarDate),
 	Time(Time)
-
 }
 
 // create a From defintion for each type for Primitive
@@ -188,78 +182,93 @@ impl fmt::Display for Primitive {
 
 }
 
+impl ToJson for Primitive {
+	fn to_json(&self) -> Json {
+		match *self {
+			Primitive::Boolean(v) => Json::Boolean(v),
+	 		Primitive::Int(i) => Json::I64(i as i64),
+	 		Primitive::UInt(i) => Json::U64(i as u64),
+	 		Primitive::PInt(i) => Json::U64(i as u64),
+	 		Primitive::Decimal(ref d) => Json::F64(d.val),
+	 		Primitive::String(ref s) => Json::String(s.clone()),
+	 		Primitive::Id(ref v) => Json::String(v.to_string()),
+	 		Primitive::Uri(ref v) => Json::String(v.to_string()),
+	 		Primitive::Oid(ref v) => Json::String(v.to_string()),
+	 		Primitive::Base64(ref v) => Json::String(v.to_string()),
+	 		Primitive::Instant(ref v) => Json::String(v.to_string()),
+	 		Primitive::Date(ref v) => Json::String(v.to_string()),
+	 		Primitive::DateTime(ref v) => Json::String(v.to_string()),
+	 		Primitive::Time(ref v) => Json::String(v.to_string()),
+	 	}
+	}
+}
+
 #[test]
 fn test_decimal_from_string() {
-	let d = Dec::from_str("3.14");
-	assert_eq!(d.val, Some(3.14f64));
-	assert_eq!(&d.raw, "3.14");
-	assert_eq!(d.precision, Some(2))
+	let d = Dec::from_str("3.14").ok().unwrap();
+	assert_eq!(d.val, 3.14f64);
+	assert_eq!(d.precision, 2);
 }
 
 #[test]
 fn test_decimal_representation() {
-	let d = Dec::from_str("0.1"); //force rounding
+	let d = Dec::from_str("0.1").ok().unwrap(); //force rounding
 	assert_eq!("0.1", d.to_string());
-	assert_eq!(Some(0.1f64), d.val);
+	assert_eq!(0.1f64, d.val);
+	assert_eq!(1, d.precision);
 }
 
 #[test]
 fn test_decimal_representation_with_precision() {
-	let d = Dec::from_str("0.10"); //force rounding
+	let d = Dec::from_str("0.10").ok().unwrap(); //force rounding
 	assert_eq!("0.10", d.to_string());
-	assert_eq!(Some(0.1f64), d.val);
+	assert_eq!(0.1f64, d.val);
+	assert_eq!(2, d.precision);
 }
 
 #[test]
 fn test_long_zero_decimal_from_string() {
-	let d = Dec::from_str("0.0000000");
-	assert_eq!(d.val, Some(0f64));
-	assert_eq!(&d.raw, "0.0000000");
+	let d = Dec::from_str("0.0000000").ok().unwrap();
+	assert_eq!(0f64, d.val);
 	assert_eq!("0.0000000", d.to_string());
-	assert_eq!(d.precision, Some(7))
+	assert_eq!(7, d.precision);
 }
 
 
 #[test]
 fn test_long_decimal_from_string() {
-	let d = Dec::from_str("3.1415926");
-	assert_eq!(d.val, Some(3.1415926f64));
-	assert_eq!(&d.raw, "3.1415926");
-	assert_eq!(d.precision, Some(7))
+	let d = Dec::from_str("3.1415926").ok().unwrap();
+	assert_eq!(3.1415926f64, d.val);
+	assert_eq!(7, d.precision);
 }
 
 #[test]
 fn test_integer_with_point_from_string() {
-	let d = Dec::from_str("3.");
-	assert_eq!(d.val, Some(3.0f64));
-	assert_eq!(&d.raw, "3.");
+	let d = Dec::from_str("3.").ok().unwrap();
+	assert_eq!(3f64, d.val);
 	assert_eq!("3", d.to_string());
-	assert_eq!(d.precision, Some(0))
+	assert_eq!(0, d.precision);
 }
 
 #[test]
 fn test_integer_from_string() {
-	let d = Dec::from_str("3");
-	assert_eq!(d.val, Some(3.0f64));
-	assert_eq!(&d.raw, "3");
-	assert_eq!(d.precision, Some(0))
+	let d = Dec::from_str("3").ok().unwrap();
+	assert_eq!(3f64, d.val);
+	assert_eq!("3", d.to_string());
+	assert_eq!(0, d.precision);
 }
 
 #[test]
 fn test_invalid_decimal_from_string() {
 	let d = Dec::from_str("pi");
-	assert_eq!(d.val,  None);
-	assert_eq!(&d.raw, "pi");
-	assert_eq!(d.precision, None)
+	assert!(d.is_err());
 }
 
 
 #[test]
 fn test_invalid_numberlike_decimal_from_string() {
 	let d = Dec::from_str("3.141.23");
-	assert_eq!(d.val, None);
-	assert_eq!(&d.raw, "3.141.23");
-	assert_eq!(d.precision, None)
+	assert!(d.is_err());
 }
 
 #[test]

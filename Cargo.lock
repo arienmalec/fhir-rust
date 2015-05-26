@@ -3,6 +3,7 @@ name = "fhir"
 version = "0.0.1"
 dependencies = [
  "chrono 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.34 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
