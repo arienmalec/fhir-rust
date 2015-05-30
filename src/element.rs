@@ -2,7 +2,7 @@ use std::fmt;
 use std::iter::repeat;
 use std::convert::{From};
 use std::collections::btree_map::BTreeMap;
-use rustc_serialize::json::{self, ToJson, Json, Array};
+use rustc_serialize::json::{ToJson, Json};
 use primitive::Primitive;
 
 
@@ -49,6 +49,12 @@ impl From<Vec<Element>> for ElementType {
 	}
 }
 
+impl From<Vec<ElementType>> for ElementType {
+	fn from(v: Vec<ElementType>) -> Self {
+		ElementType::List(v)
+	}
+}
+
 
 pub struct Element {
 	pub name: String,
@@ -81,6 +87,15 @@ impl NamedFrom<i32> for Element {
 
 impl NamedFrom<Vec<Element>> for Element {
 	fn from_name_val(name: &str, val: Vec<Element>) -> Self {
+		Element {
+			name: name.to_string(),
+			value: ElementType::from(val)
+		}
+	}
+}
+
+impl NamedFrom<Vec<ElementType>> for Element {
+	fn from_name_val(name: &str, val: Vec<ElementType>) -> Self {
 		Element {
 			name: name.to_string(),
 			value: ElementType::from(val)
@@ -147,7 +162,10 @@ fn make_test_elt() -> Element {
 	let e2 = Element::from_name_val("bar",false);
 	let e3 = Element::from_name_val("baz",23i32);
 	let e_second = Element::from_name_val("second", vec![e3]);
-	let e_top = Element::from_name_val("top", vec![e1,e2,e_second]);
+	let e_list = Element::from_name_val("list", vec![
+		ElementType::Atom(Primitive::from(true)),
+		ElementType::Atom(Primitive::from(true))]);
+	let e_top = Element::from_name_val("top", vec![e1,e2,e_second,e_list]);
 	e_top
 
 }
@@ -159,7 +177,8 @@ fn test_compound_elt() {
   foo: false
   bar: false
   second: 
-    baz: 23";
+    baz: 23
+  list: [true,true]";
   assert_eq!(expected, make_test_elt().to_string());
 
 }
