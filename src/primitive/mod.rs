@@ -4,10 +4,10 @@ use std::convert::{From};
 use chrono::{DateTime,FixedOffset};
 use rustc_serialize::json::{ToJson, Json};
 
-mod decimal;
-use primitive::decimal::{Dec};
-mod time;
-use primitive::time::{Time};
+pub mod decimal;
+pub use primitive::decimal::{Dec};
+pub mod time;
+pub use primitive::time::{Time};
 mod vardate;
 use primitive::vardate::{VarDate};
 

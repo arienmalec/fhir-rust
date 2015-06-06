@@ -4,6 +4,7 @@ extern crate rustc_serialize;
 mod primitive;
 mod element;
 mod resource;
+mod new_element;
 
 use element::{Element,NamedFrom,ElementType};
 use rustc_serialize::json::{ToJson};
