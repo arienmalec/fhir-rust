@@ -8,8 +8,8 @@ use chrono::{DateTime,FixedOffset};
 use primitive::{Primitive, Dec, Time};
 
 pub struct Element {
-	name: String,
-	value: Value
+	pub name: String,
+	pub value: Value
 }
 
 impl InternalToJson for Element {
@@ -20,13 +20,13 @@ impl InternalToJson for Element {
 
 
 pub trait NamedFrom<T> {
-	fn from_name_val(name: &str, val: T) -> Self;
+	fn with(name: &str, val: T) -> Self;
 }
 
 macro_rules! gen_named {
 	($t:ty) => {
 		impl NamedFrom<$t> for Element {
-			fn from_name_val(name: &str, v: $t) -> Self {
+			fn with(name: &str, v: $t) -> Self {
 				Element {
 					name: name.to_string(),
 					value: Value::from(v)
@@ -46,7 +46,7 @@ gen_named!(Url);
 gen_named!(DateTime<FixedOffset>);
 
 impl NamedFrom<Vec<Element>> for Element {
-	fn from_name_val(name: &str, val: Vec<Element>) -> Self {
+	fn with(name: &str, val: Vec<Element>) -> Self {
 		Element {
 			name: name.to_string(),
 			value: Value { value: ValueType::Elt(val), id: None}
@@ -55,7 +55,7 @@ impl NamedFrom<Vec<Element>> for Element {
 }
 
 impl NamedFrom<Vec<Value>> for Element {
-	fn from_name_val(name: &str, val: Vec<Value>) -> Self {
+	fn with(name: &str, val: Vec<Value>) -> Self {
 		Element {
 			name: name.to_string(),
 			value: Value { value: ValueType::List(val), id: None}
@@ -120,6 +120,12 @@ impl Value {
 			Value::simple_idext_to_json(self.id.as_ref())
 		}
 	}
+
+	pub fn id(mut self, id: &str) -> Self {
+		self.id = Some(String::from(id));
+		self
+	}
+
 }
 
 trait InternalToJson {
@@ -161,6 +167,15 @@ gen_from!(Time);
 gen_from!(Url);
 gen_from!(DateTime<FixedOffset>);
 
+impl From<Vec<Element>> for Value {
+	fn from(v: Vec<Element>) -> Self {
+		Value {
+			value: ValueType::Elt(v),
+			id: None
+		}
+	}
+}
+
 
 impl ToJson for Value {
 	fn to_json(&self) -> Json {
@@ -175,16 +190,16 @@ fn test_bool_value() {
 }
 
 fn make_test_elt() -> Element {
-	let mut e1 = Element::from_name_val("foo",false);
+	let mut e1 = Element::with("foo",false);
 	e1.value.id = Some("quux".to_string());
 	let e1 = e1;
-	let e2 = Element::from_name_val("bar",false);
-	let e3 = Element::from_name_val("baz",23u32);
-	let e_second = Element::from_name_val("second", vec![e3]);
-	let e_list = Element::from_name_val("list", vec![
+	let e2 = Element::with("bar",false);
+	let e3 = Element::with("baz",23u32);
+	let e_second = Element::with("second", vec![e3]);
+	let e_list = Element::with("list", vec![
 		Value::from(true),
-		Value {value: ValueType::Atom(Primitive::from(true)), id: Some("abc123".to_string())}]);
-	let e_top = Element::from_name_val("top", vec![e1,e2,e_second,e_list]);
+		Value::from(true).id("abc123")]);
+	let e_top = Element::with("top", vec![e1,e2,e_second,e_list]);
 	e_top
 }
 

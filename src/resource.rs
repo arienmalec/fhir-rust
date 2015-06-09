@@ -1,11 +1,17 @@
 use std::collections::btree_map::BTreeMap;
 use rustc_serialize::json::{ToJson, Json};
 
-use element::{Element,NamedFrom};
+use new_element::{Element,NamedFrom};
 
 pub struct Resource {
 	pub name: String,
 	pub elts: Vec<Element>
+}
+
+impl Resource {
+	pub fn new(name: &str, elts: Vec<Element>) -> Self {
+		Resource {name: String::from(name), elts: elts}
+	}
 }
 
 impl ToJson for Resource {
@@ -21,11 +27,9 @@ impl ToJson for Resource {
 
 #[test]
 fn test_resource_to_json () {
-	let r = Resource {
-		name: "foo".to_string(),
-		elts: vec![Element::from_name_val("bar",false),
-			Element::from_name_val("baz",true)]
-	};
+	let r = Resource::new("foo", vec![Element::with("bar",false),
+			Element::with("baz",true)]);
+
 	assert_eq!(Json::from_str("{\"resourceType\": \"foo\",\"bar\": false,\"baz\": true}").unwrap(),
 		r.to_json());
 }
