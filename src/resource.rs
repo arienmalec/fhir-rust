@@ -9,8 +9,19 @@ pub struct Resource {
 }
 
 impl Resource {
-	pub fn new(name: &str, elts: Vec<Element>) -> Self {
-		Resource {name: String::from(name), elts: elts}
+	pub fn new(name: &str) -> Self {
+		Resource {name:String::from(name), elts: Vec::new()}
+	}
+
+	pub fn new_with_elts(name: &str, elts: Vec<Element>) -> Self {
+		let mut r = Self::new(name);
+		r.elts = elts;
+		r
+	}
+
+	pub fn add_elt(mut self, e: Element) -> Self {
+		self.elts.push(e);
+		self
 	}
 }
 
@@ -27,9 +38,15 @@ impl ToJson for Resource {
 
 #[test]
 fn test_resource_to_json () {
-	let r = Resource::new("foo", vec![Element::with("bar",false),
-			Element::with("baz",true)]);
+	let r = Resource::new("foo")
+		.add_elt(Element::with("bar",false))
+		.add_elt(Element::with("baz",true));
+	let r2 = Resource::new_with_elts("foo", vec![
+		Element::with("bar",false),
+		Element::with("baz",true)]);
 
-	assert_eq!(Json::from_str("{\"resourceType\": \"foo\",\"bar\": false,\"baz\": true}").unwrap(),
-		r.to_json());
+	let j = Json::from_str("{\"resourceType\": \"foo\",\"bar\": false,\"baz\": true}").unwrap();
+
+	assert_eq!(j, r.to_json());
+	assert_eq!(j, r2.to_json());
 }

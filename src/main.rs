@@ -20,7 +20,11 @@ fn main() {
 	let e_list = Element::with("list", vec![
 		Value::from(true),
 		Value::from(true)]);
-	let e_top = Resource::new("top", vec![e1,e2,e_second,e_list]);
+	let e_top = Resource::new("top")
+		.add_elt(e1)
+		.add_elt(e2)
+		.add_elt(e_second)
+		.add_elt(e_list);
 
 	let j = e_top.to_json();
     println!("{}",j.to_string());
