@@ -1,184 +1,210 @@
-use std::fmt;
-use std::iter::repeat;
 use std::convert::{From};
 use std::collections::btree_map::BTreeMap;
+
 use rustc_serialize::json::{ToJson, Json};
-use primitive::Primitive;
+use url::{Url};
+use chrono::{DateTime,FixedOffset};
 
-
-pub enum ElementType {
-	Atom(Primitive),
-	List(Vec<ElementType>),
-	Elt(Vec<Element>)
-}
-
-impl ToJson for ElementType {
-	fn to_json(&self) -> Json {
-		match *self {
-			ElementType::Atom(ref v) => v.to_json(),
-			ElementType::List(ref v) => {
-				Json::Array(v.iter().map(|e| e.to_json()).collect::<Vec<Json>>())
-			},
-			ElementType::Elt(ref v) => {
-				let mut o: BTreeMap<String,Json> = BTreeMap::new();
-				for e in v.iter() {
-					o.insert(e.name.clone(), e.value.to_json());
-				}
-				Json::Object(o)
-			}
-		}
-	}
-}
-
-
-impl From<bool> for ElementType {
-	fn from(b:bool) -> Self {
-		ElementType::Atom(Primitive::from(b))
-	}
-}
-
-impl From<i32> for ElementType {
-	fn from(v: i32) -> Self {
-		ElementType::Atom(Primitive::Int(v))
-	}
-}
-
-impl From<Vec<Element>> for ElementType {
-	fn from(v: Vec<Element>) -> Self {
-		ElementType::Elt(v)
-	}
-}
-
-impl From<Vec<ElementType>> for ElementType {
-	fn from(v: Vec<ElementType>) -> Self {
-		ElementType::List(v)
-	}
-}
-
+use primitive::{Primitive, Dec, Time};
 
 pub struct Element {
 	pub name: String,
-	pub value: ElementType
-	//pub id: Option<String>,
-	//pub extensions: Option<Vec<Extension>>
+	pub value: Value
 }
+
+impl InternalToJson for Element {
+	fn _to_json(&self) -> Json {
+		self.value.to_json()
+	}
+}
+
 
 pub trait NamedFrom<T> {
-	fn from_name_val(name: &str, val: T) -> Self;
+	fn with(name: &str, val: T) -> Self;
 }
 
-impl NamedFrom<bool> for Element {
-	fn from_name_val(name: &str, val: bool) -> Self {
-		Element {
-			name: name.to_string(),
-			value: ElementType::from(val)
+macro_rules! gen_named {
+	($t:ty) => {
+		impl NamedFrom<$t> for Element {
+			fn with(name: &str, v: $t) -> Self {
+				Element {
+					name: name.to_string(),
+					value: Value::from(v)
+				}
+			}
 		}
 	}
 }
 
-impl NamedFrom<i32> for Element {
-	fn from_name_val(name: &str, val: i32) -> Self {
-		Element {
-			name: name.to_string(),
-			value: ElementType::from(val)
-		}
-	}
-}
+gen_named!(bool);
+gen_named!(i32);
+gen_named!(u32);
+gen_named!(Dec);
+gen_named!(String);
+gen_named!(Time);
+gen_named!(Url);
+gen_named!(DateTime<FixedOffset>);
 
 impl NamedFrom<Vec<Element>> for Element {
-	fn from_name_val(name: &str, val: Vec<Element>) -> Self {
+	fn with(name: &str, val: Vec<Element>) -> Self {
 		Element {
 			name: name.to_string(),
-			value: ElementType::from(val)
+			value: Value { value: ValueType::Elt(val), id: None}
 		}
 	}
 }
 
-impl NamedFrom<Vec<ElementType>> for Element {
-	fn from_name_val(name: &str, val: Vec<ElementType>) -> Self {
+impl NamedFrom<Vec<Value>> for Element {
+	fn with(name: &str, val: Vec<Value>) -> Self {
 		Element {
 			name: name.to_string(),
-			value: ElementType::from(val)
+			value: Value { value: ValueType::List(val), id: None}
 		}
 	}
 }
 
 
-impl Element {
-	pub fn to_string(&self) -> String {
-		self.recursive_to_string(0)
+pub enum ValueType {
+	Atom(Primitive),
+	List(Vec<Value>),
+	Elt(Vec<Element>)
+}
+
+impl ToJson for ValueType {
+	fn to_json(&self) -> Json {
+		match *self {
+			ValueType::Atom(ref v) => v.to_json(),
+			ValueType::List(ref v) => v.to_json(),
+			ValueType::Elt(ref v) => v._to_json()
+		}
+	}
+}
+
+
+pub struct Value {
+	value: ValueType,
+	id: Option<String>
+}
+
+impl Value {
+
+	fn make_idext_ojb(id: &String) -> Json {
+		let mut o: BTreeMap<String,Json> = BTreeMap::new();
+		o.insert("id".to_string(),Json::String(id.to_string()));
+		Json::Object(o)
 	}
 
-	fn recursive_to_string(&self,level: usize) -> String {
-
-		fn value_to_string(v: &ElementType, level: usize) -> String {
-			fn recursive_elt_vec_to_string (v: &Vec<Element>, level: usize) -> String {
-				v.iter().map(|e| e.recursive_to_string(level)).collect::<Vec<String>>().connect("\n")
-			}
-			fn value_list_to_string(v: &Vec<ElementType>, level: usize) -> String {
-				v.iter().map(|e| value_to_string(&e,level)).collect::<Vec<String>>().connect(",")
-			}
-			match *v {
-	 			ElementType::Atom(ref v) => format!("{}",v),
- 				ElementType::List(ref v) => format!("[{}]", value_list_to_string(v, level)),
- 				ElementType::Elt(ref v) => format!("\n{}",recursive_elt_vec_to_string(v, level + 1))			
+	fn list_idext_to_json(list: &Vec<Value>) -> Option<Json> {
+		let mut found = false;
+		let mut retlist: Vec<Json> = Vec::new();
+		for v in list {
+			if let Some(ref i) = v.id {
+				found = true;
+				retlist.push(Value::make_idext_ojb(i));				
+			} else {
+				retlist.push(Json::Null);
 			}
 		}
+		if found { Some(Json::Array(retlist)) } else { None }
+	}
 
-		let spaces: String = repeat("  ").take(level).collect::<Vec<&str>>().concat();
-		let label = format!("{}: ",self.name);
-		let value = value_to_string(&self.value, level);
+	fn simple_idext_to_json(id: Option<&String>) -> Option<Json> {
+		id.map(Value::make_idext_ojb)
+	}
 
-		format!("{}{}{}", spaces, label, value)
+
+	fn id_ext_to_json(&self) -> Option<Json> {
+		if let ValueType::List(ref v) = self.value {
+			Value::list_idext_to_json(v)
+		} else {
+			Value::simple_idext_to_json(self.id.as_ref())
+		}
+	}
+
+	pub fn id(mut self, id: &str) -> Self {
+		self.id = Some(String::from(id));
+		self
 	}
 
 }
 
-
-impl fmt::Display for Element {
- 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
- 		write!(f,"{}",self.to_string())
- 	}
+trait InternalToJson {
+	fn _to_json(&self) -> Json;
 }
 
-impl ToJson for Element {
-	// Will only be valid JSON if self.value is an element list.
+impl InternalToJson for Vec<Element> {
+	fn _to_json(&self) -> Json {
+		let mut o: BTreeMap<String,Json> = BTreeMap::new();
+		for e in self.iter() {
+			o.insert(e.name.clone(), e.value.to_json());
+			e.value.id_ext_to_json()
+				.and_then(|j| o.insert(format!("_{}",e.name),j));
+		}
+		Json::Object(o)
+	}
+}
+
+
+macro_rules! gen_from {
+	($t:ty) => {
+		impl From<$t> for Value {
+			fn from(v: $t) -> Self {
+				Value {
+					value: ValueType::Atom(Primitive::from(v)),
+					id: None
+				}
+			}
+		}
+	}
+}
+
+gen_from!(bool);
+gen_from!(i32);
+gen_from!(u32);
+gen_from!(Dec);
+gen_from!(String);
+gen_from!(Time);
+gen_from!(Url);
+gen_from!(DateTime<FixedOffset>);
+
+impl From<Vec<Element>> for Value {
+	fn from(v: Vec<Element>) -> Self {
+		Value {
+			value: ValueType::Elt(v),
+			id: None
+		}
+	}
+}
+
+
+impl ToJson for Value {
 	fn to_json(&self) -> Json {
 		self.value.to_json()
 	}
 }
 
 #[test]
-fn test_simple_primitive_elt() {
-	let e = Element {
-		name: "foo".to_string(),
-		value: ElementType::from(false)
-	};
-	assert_eq!("foo: false", format!("{}", e));
+fn test_bool_value() {
+	let v = Value::from(false);
+	assert_eq!(Json::Boolean(false), v.to_json());
 }
 
 fn make_test_elt() -> Element {
-	let e1 = Element::from_name_val("foo",false);
-	let e2 = Element::from_name_val("bar",false);
-	let e3 = Element::from_name_val("baz",23i32);
-	let e_second = Element::from_name_val("second", vec![e3]);
-	let e_list = Element::from_name_val("list", vec![
-		ElementType::Atom(Primitive::from(true)),
-		ElementType::Atom(Primitive::from(true))]);
-	let e_top = Element::from_name_val("top", vec![e1,e2,e_second,e_list]);
+	let mut e1 = Element::with("foo",false);
+	e1.value.id = Some("quux".to_string());
+	let e1 = e1;
+	let e2 = Element::with("bar",false);
+	let e3 = Element::with("baz",23u32);
+	let e_second = Element::with("second", vec![e3]);
+	let e_list = Element::with("list", vec![
+		Value::from(true),
+		Value::from(true).id("abc123")]);
+	let e_top = Element::with("top", vec![e1,e2,e_second,e_list]);
 	e_top
-
 }
 
 #[test]
 fn test_compound_elt() {
-
-	let expected = "top: 
-  foo: false
-  bar: false
-  second: 
-    baz: 23
-  list: [true,true]";
-  assert_eq!(expected, make_test_elt().to_string());
-
+	let expected = Json::from_str(r#"{"foo": false, "_foo": {"id": "quux"}, "bar": false, "second": { "baz": 23 }, "list": [true,true], "_list": [null, {"id":"abc123"}]}"#).unwrap();
+  	assert_eq!(expected, make_test_elt()._to_json());
 }

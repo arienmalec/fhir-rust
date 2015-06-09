@@ -1,7 +1,7 @@
 use std::collections::btree_map::BTreeMap;
 use rustc_serialize::json::{ToJson, Json};
 
-use new_element::{Element,NamedFrom};
+use element::{Element,NamedFrom};
 
 pub struct Resource {
 	pub name: String,
