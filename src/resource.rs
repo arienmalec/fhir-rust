@@ -2,15 +2,17 @@ use std::collections::btree_map::BTreeMap;
 use rustc_serialize::json::{ToJson, Json};
 
 use element::{Element,NamedFrom};
+use extension::Extension;
 
 pub struct Resource {
 	pub name: String,
+	pub extensions: Vec<Extension>,
 	pub elts: Vec<Element>
 }
 
 impl Resource {
 	pub fn new(name: &str) -> Self {
-		Resource {name:String::from(name), elts: Vec::new()}
+		Resource {name:String::from(name), elts: Vec::new(), extensions: Vec::new()}
 	}
 
 	pub fn new_with_elts(name: &str, elts: Vec<Element>) -> Self {
@@ -21,6 +23,11 @@ impl Resource {
 
 	pub fn add_elt(mut self, e: Element) -> Self {
 		self.elts.push(e);
+		self
+	}
+
+	pub fn add_ext(mut self, e: Extension) -> Self {
+		self.extensions.push(e);
 		self
 	}
 }

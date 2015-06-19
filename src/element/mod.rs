@@ -21,6 +21,30 @@ impl Element {
 		self.value = v.id(id);
 		self
 	}
+
+	pub fn valid_extension(&self) -> bool {
+		match self.name.as_ref() {
+			"Coding" => true,
+			"CodeableConcept" => true,
+			"Attachment" => true,
+			"Identifier" => true,
+			"Quantity" => true,
+			"Range" => true,
+			"Period" => true,
+			"Ratio" => true,
+			"HumanName" => true,
+			"Address" => true,
+			"ContactPoint" => true,
+			"Timing" => true,
+			"Signature" => true,
+			"Reference" => true,
+			_ => false
+		}
+	}
+
+	pub fn extension_name(&self) -> String {
+		format!("value{}",self.name)
+	}
 }
 
 trait InternalToJson {

@@ -17,17 +17,18 @@ pub enum Primitive {
 	Boolean(bool),
 	Int(i32),
 	UInt(u32),
-	PInt(u32),
 	Decimal(Dec),
 	String(String),
 	Id(String),
+	Code(String),
 	Uri(Url),
 	Oid(Url),
 	Base64(String),
 	Instant(DateTime<FixedOffset>),
 	Date(VarDate),
 	DateTime(VarDate),
-	Time(Time)
+	Time(Time),
+	PInt(u32),
 }
 
 // create a From defintion for each type for Primitive
@@ -57,6 +58,38 @@ impl<'a> From<&'a str> for Primitive {
 }
 
 impl Primitive {
+	pub fn valid_extension(&self) -> bool {
+		match *self {
+			Primitive::Time(_) => false,
+			Primitive::UInt(_) => false,
+			Primitive::Oid(_) => false,
+			Primitive::PInt(_) => false,
+			Primitive::Id(_) => false,
+			_ => true
+		}
+	}
+
+	pub fn extension_name(&self) -> String {
+		let s = match *self {
+			Primitive::Boolean(v) => "Boolean",
+	 		Primitive::Int(i) => "Integer",
+	 		Primitive::UInt(i) => "Error",
+	 		Primitive::PInt(i) => "Error",
+	 		Primitive::Decimal(ref d) => "Decimal",
+	 		Primitive::String(ref s) => "String",
+	 		Primitive::Id(ref s) => "Error",
+	 		Primitive::Code(ref s) => "Code",
+	 		Primitive::Uri(ref v) => "Uri",
+	 		Primitive::Oid(ref v) => "Error",
+	 		Primitive::Base64(ref s) => "Base64Binary",
+	 		Primitive::Instant(ref x) => "Instant",
+	 		Primitive::Date(ref x) => "Date",
+	 		Primitive::DateTime(ref x) => "DateTime",
+	 		Primitive::Time(ref x) => "Error",
+		};
+		format!("value{}",s)
+	}
+
 	fn to_string(&self) -> String {
 		match *self {
 			Primitive::Boolean(v) => format!("{}",v),
@@ -66,6 +99,7 @@ impl Primitive {
 	 		Primitive::Decimal(ref d) => format!("{}",d),
 	 		Primitive::String(ref s) => format!("{}",s),
 	 		Primitive::Id(ref s) => format!("{}",s),
+	 		Primitive::Code(ref s) => format!("{}",s),
 	 		Primitive::Uri(ref v) => format!("{}",v),
 	 		Primitive::Oid(ref v) => format!("{}",v),
 	 		Primitive::Base64(ref s) => format!("{}",s),
@@ -94,6 +128,7 @@ impl ToJson for Primitive {
 	 		Primitive::Decimal(ref d) => Json::F64(d.val),
 	 		Primitive::String(ref s) => Json::String(s.clone()),
 	 		Primitive::Id(ref v) => Json::String(v.to_string()),
+	 		Primitive::Code(ref v) => Json::String(v.to_string()),
 	 		Primitive::Uri(ref v) => Json::String(v.to_string()),
 	 		Primitive::Oid(ref v) => Json::String(v.to_string()),
 	 		Primitive::Base64(ref v) => Json::String(v.to_string()),

@@ -4,10 +4,12 @@ extern crate rustc_serialize;
 mod primitive;
 mod element;
 mod resource;
+mod extension;
 
 use element::{Element,Value,NamedFrom};
 use rustc_serialize::json::{ToJson};
 use resource::Resource;
+use extension::Extension;
 
 
 #[allow(dead_code)]
