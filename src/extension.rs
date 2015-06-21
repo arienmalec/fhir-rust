@@ -4,7 +4,7 @@ use url::Url;
 use rustc_serialize::json::{ToJson, Json};
 
 use primitive::Primitive;
-use element::Element;
+use element::{Element,NamedFrom};
 
 
 
@@ -20,6 +20,14 @@ impl ExtensionValue {
 			ExtensionValue::Atom(ref p) => p.extension_name(),
 			ExtensionValue::Composite(ref e) => e.extension_name(),
 			ExtensionValue::Extensions(_) => String::from("extension")
+		}
+	}
+
+	fn valid_extension(&self) -> bool {
+		match *self {
+			ExtensionValue::Atom(ref p) => p.valid_extension(),
+			ExtensionValue::Composite(ref e) => e.valid_extension(),
+			ExtensionValue::Extensions(_) => true
 		}
 	}
 }
@@ -53,6 +61,7 @@ pub struct Extension {
 impl ToJson for Extension {
 	fn to_json(&self) -> Json {
 		let mut o: BTreeMap<String,Json> = BTreeMap::new();
+		self.id.as_ref().and_then(|i| o.insert(String::from("id"), Json::String(i.clone())));
 		o.insert(String::from("url"),Json::String(self.uri.to_string()));
 		o.insert(self.value.value_name(), self.value.to_json());
 		Json::Object(o)
@@ -61,7 +70,7 @@ impl ToJson for Extension {
 }
 
 impl Extension {
-	fn builder() -> ExtensionBuilder {
+	pub fn builder() -> ExtensionBuilder {
 		ExtensionBuilder::new()
 	}
 }
@@ -93,23 +102,26 @@ impl ExtensionBuilder {
 		self
 	}
 
-
-	pub fn atom(self, p: Primitive) -> Result<Self,&'static str> {
+	fn value(self, v: ExtensionValue) -> Result<Self, &'static str> {
 		if self.value.is_some() {return Err("Already has value")}
-		if p.valid_extension() {
-			Ok(self.set_value(ExtensionValue::Atom(p)))
+		if v.valid_extension() {
+			Ok(self.set_value(v))
 		} else {
 			Err("Invalid atomic value")
 		}
+
+	}
+
+	pub fn atom(self, p: Primitive) -> Result<Self,&'static str> {
+		self.value(ExtensionValue::Atom(p))
 	}
 
 	pub fn composite(self, e: Element) -> Result<Self,&'static str> {
-		if self.value.is_some() {return Err("Already has value")}
-		if e.valid_extension() {
-			Ok(self.set_value(ExtensionValue::Composite(e)))
-		} else {
-			Err("Invalid atomic value")
-		}
+		self.value(ExtensionValue::Composite(e))
+	}
+
+	pub fn extensions(self, e: Vec<Extension>) -> Result<Self, &'static str> {
+		self.value(ExtensionValue::Extensions(e))
 	}
 
 
@@ -127,11 +139,49 @@ impl ExtensionBuilder {
 fn test_atomic_extension() {
 	let e = Extension::builder()
 		.uri(Url::parse("http://example.org/is_happy").ok().unwrap())
+		.id("ext_id1")
 		.atom(Primitive::from(false))
 		.and_then(|e| e.build())
 		.ok().unwrap();
-	let j = Json::from_str(r#"{"url": "http://example.org/is_happy", "valueBoolean": false}"#).unwrap();
+	let j = Json::from_str(r#"{"url": "http://example.org/is_happy", "id": "ext_id1", "valueBoolean": false}"#).unwrap();
 	assert_eq!(j, e.to_json());
 }
 
+#[test]
+fn test_composite_extension() {
+	let elt = Element::with("Coding", vec![
+		Element::with("system",Url::parse("http://example.org/mycode").ok().unwrap()),
+		Element::with("code","abc123"),
+		Element::with("display","Alpha Bravo Charlie 123")]);
+
+
+	let e = Extension::builder()
+		.uri(Url::parse("http://example.org/is_happy").ok().unwrap())
+		.composite(elt)
+		.and_then(|e| e.build())
+		.ok().unwrap();
+	let j = Json::from_str(r#"{"url": "http://example.org/is_happy", "valueCoding": {"system": "http://example.org/mycode", "code": "abc123", "display": "Alpha Bravo Charlie 123"}}"#).unwrap();
+	assert_eq!(j, e.to_json());
+}
+
+#[test]
+fn test_extension_with_subextensions() {
+	let e1 = Extension::builder()
+		.uri(Url::parse("http://example.org/is_happy").ok().unwrap())
+		.atom(Primitive::from(false))
+		.and_then(|e| e.build())
+		.ok().unwrap();
+	let e2 = Extension::builder()
+		.uri(Url::parse("http://example.org/myalpha").ok().unwrap())
+		.atom(Primitive::from("abc"))
+		.and_then(|e| e.build())
+		.ok().unwrap();
+	let e = Extension::builder()
+		.uri(Url::parse("http://example.org/happy_alpha").ok().unwrap())
+		.extensions(vec![e1, e2])
+		.and_then(|e| e.build())
+		.ok().unwrap();
+	let j = Json::from_str(r#"{"url": "http://example.org/happy_alpha", "extension": [{"url": "http://example.org/is_happy", "valueBoolean": false},{"url": "http://example.org/myalpha", "valueString": "abc"}]}"#).unwrap();
+	assert_eq!(j, e.to_json());
+}
 

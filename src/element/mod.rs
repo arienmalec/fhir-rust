@@ -97,11 +97,20 @@ gen_named!(Time);
 gen_named!(Url);
 gen_named!(DateTime<FixedOffset>);
 
+impl<'a> NamedFrom<&'a str> for Element {
+	fn with(name: &str, val: &'a str) -> Self {
+		Element {
+			name: String::from(name),
+			value: Value::from(val)
+		}
+	}
+}
+
 impl NamedFrom<Vec<Element>> for Element {
 	fn with(name: &str, val: Vec<Element>) -> Self {
 		Element {
 			name: name.to_string(),
-			value: Value { value: ValueType::Elt(val), id: None}
+			value: Value { value: ValueType::Elt(val), id: None, extension: Vec::new()}
 		}
 	}
 }
@@ -110,7 +119,7 @@ impl NamedFrom<Vec<Value>> for Element {
 	fn with(name: &str, val: Vec<Value>) -> Self {
 		Element {
 			name: name.to_string(),
-			value: Value { value: ValueType::List(val), id: None}
+			value: Value { value: ValueType::List(val), id: None, extension: Vec::new()}
 		}
 	}
 }

@@ -71,21 +71,17 @@ impl Primitive {
 
 	pub fn extension_name(&self) -> String {
 		let s = match *self {
-			Primitive::Boolean(v) => "Boolean",
-	 		Primitive::Int(i) => "Integer",
-	 		Primitive::UInt(i) => "Error",
-	 		Primitive::PInt(i) => "Error",
-	 		Primitive::Decimal(ref d) => "Decimal",
-	 		Primitive::String(ref s) => "String",
-	 		Primitive::Id(ref s) => "Error",
-	 		Primitive::Code(ref s) => "Code",
-	 		Primitive::Uri(ref v) => "Uri",
-	 		Primitive::Oid(ref v) => "Error",
-	 		Primitive::Base64(ref s) => "Base64Binary",
-	 		Primitive::Instant(ref x) => "Instant",
-	 		Primitive::Date(ref x) => "Date",
-	 		Primitive::DateTime(ref x) => "DateTime",
-	 		Primitive::Time(ref x) => "Error",
+			Primitive::Boolean(_) => "Boolean",
+	 		Primitive::Int(_) => "Integer",
+	 		Primitive::Decimal(_) => "Decimal",
+	 		Primitive::String(_) => "String",
+	 		Primitive::Code(_) => "Code",
+	 		Primitive::Uri(_) => "Uri",
+	 		Primitive::Base64(_) => "Base64Binary",
+	 		Primitive::Instant(_) => "Instant",
+	 		Primitive::Date(_) => "Date",
+	 		Primitive::DateTime(_) => "DateTime",
+	 		_  => "Error"
 		};
 		format!("value{}",s)
 	}
@@ -221,6 +217,14 @@ fn test_base64() {
 	assert_eq!("hello, world",p.to_string());
 	assert_eq!(Json::String("hello, world".to_string()),p.to_json());
 }
+
+#[test]
+fn test_code() {
+	let p = Primitive::Code("hello, world".to_string()); 
+	assert_eq!("hello, world",p.to_string());
+	assert_eq!(Json::String("hello, world".to_string()),p.to_json());
+}
+
 
 #[test]
 fn test_instant() {

@@ -6,6 +6,7 @@ use chrono::{DateTime,FixedOffset};
 
 use element::{Element,InternalToJson};
 use primitive::{Primitive, Dec, Time};
+use extension::Extension;
 
 
 
@@ -28,7 +29,8 @@ impl ToJson for ValueType {
 
 pub struct Value {
 	pub value: ValueType,
-	pub id: Option<String>
+	pub id: Option<String>,
+	pub extension: Vec<Extension>
 }
 
 impl Value {
@@ -41,9 +43,26 @@ impl Value {
 		v
 	}
 
-	fn make_idext_ojb(id: &String) -> Json {
+	pub fn has_extension(&self) -> bool {
+		self.extension.len() > 0
+	}
+
+	pub fn has_id(&self) -> bool {
+		self.id.is_some()
+	}
+
+	pub fn has_idext(&self) -> bool {
+		self.has_id() || self.has_extension()
+	}
+
+	fn make_idext_ojb(&self) -> Json {
 		let mut o: BTreeMap<String,Json> = BTreeMap::new();
-		o.insert("id".to_string(),Json::String(id.to_string()));
+		if let Some(ref id) = self.id {
+			o.insert("id".to_string(),Json::String(id.to_string()));
+		}
+		if self.has_extension() {
+			o.insert(String::from("extension"), self.extension.to_json());
+		}
 		Json::Object(o)
 	}
 
@@ -51,9 +70,9 @@ impl Value {
 		let mut found = false;
 		let mut retlist: Vec<Json> = Vec::new();
 		for v in list {
-			if let Some(ref i) = v.id {
+			if v.has_idext()  {
 				found = true;
-				retlist.push(Value::make_idext_ojb(i));				
+				retlist.push(v.make_idext_ojb());				
 			} else {
 				retlist.push(Json::Null);
 			}
@@ -61,8 +80,12 @@ impl Value {
 		if found { Some(Json::Array(retlist)) } else { None }
 	}
 
-	fn simple_idext_to_json(id: Option<&String>) -> Option<Json> {
-		id.map(Value::make_idext_ojb)
+	fn simple_idext_to_json(&self) -> Option<Json> {
+		if self.id.is_some() || self.has_extension() {
+			Some(self.make_idext_ojb())
+		} else {
+			None
+		}
 	}
 
 
@@ -70,7 +93,7 @@ impl Value {
 		if let ValueType::List(ref v) = self.value {
 			Value::list_idext_to_json(v)
 		} else {
-			Value::simple_idext_to_json(self.id.as_ref())
+			self.simple_idext_to_json()
 		}
 	}
 
@@ -87,7 +110,8 @@ macro_rules! gen_from {
 			fn from(v: $t) -> Self {
 				Value {
 					value: ValueType::Atom(Primitive::from(v)),
-					id: None
+					id: None,
+					extension: Vec::new()
 				}
 			}
 		}
@@ -103,11 +127,22 @@ gen_from!(Time);
 gen_from!(Url);
 gen_from!(DateTime<FixedOffset>);
 
+impl<'a> From<&'a str> for Value {
+	fn from(v: &'a str) -> Self {
+		Value {
+			value: ValueType::Atom(Primitive::from(v)),
+			id: None,
+			extension: Vec::new()
+		}
+	}
+}
+
 impl From<Vec<Element>> for Value {
 	fn from(v: Vec<Element>) -> Self {
 		Value {
 			value: ValueType::Elt(v),
-			id: None
+			id: None,
+			extension: Vec::new()
 		}
 	}
 }

@@ -1,8 +1,11 @@
 use std::collections::btree_map::BTreeMap;
 use rustc_serialize::json::{ToJson, Json};
+use url::Url;
+
 
 use element::{Element,NamedFrom};
 use extension::Extension;
+use primitive::Primitive;
 
 pub struct Resource {
 	pub name: String,
@@ -30,6 +33,10 @@ impl Resource {
 		self.extensions.push(e);
 		self
 	}
+
+	pub fn has_extensions(&self) -> bool {
+		self.extensions.len() > 0
+	}
 }
 
 impl ToJson for Resource {
@@ -38,6 +45,9 @@ impl ToJson for Resource {
 		o.insert("resourceType".to_string(),Json::String(self.name.clone()));
 		for e in self.elts.iter() {
 			o.insert(e.name.clone(), e.value.to_json());
+		}
+		if self.has_extensions() {
+			o.insert(String::from("extension"), self.extensions.to_json());
 		}
 		Json::Object(o)
 	}
@@ -56,4 +66,21 @@ fn test_resource_to_json () {
 
 	assert_eq!(j, r.to_json());
 	assert_eq!(j, r2.to_json());
+}
+
+#[test]
+fn test_resource_with_ext () {
+	let e = Extension::builder()
+		.uri(Url::parse("http://example.org/is_happy").ok().unwrap())
+		.atom(Primitive::from(false))
+		.and_then(|e| e.build())
+		.ok().unwrap();
+	let r = Resource::new("foo")
+		.add_elt(Element::with("bar",false))
+		.add_elt(Element::with("baz",true))
+		.add_ext(e);
+
+	let j = Json::from_str(r#"{"resourceType": "foo", "extension": [{"url": "http://example.org/is_happy", "valueBoolean": false}], "bar": false, "baz": true}"#).unwrap();
+
+	assert_eq!(j, r.to_json());
 }
